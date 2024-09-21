@@ -98,6 +98,7 @@ def evaluate_model(model, test_loader, device):
             predicted_coords = model(images)
             
             for true, pred in zip(coords.cpu().numpy(), predicted_coords.cpu().numpy()):
+                print(true, pred)
                 distance = geodesic(true, pred).kilometers
                 distances.append(distance)
             
@@ -123,12 +124,12 @@ def main():
     # Data preparation
     print("Preparing dataset and dataloaders")
     transform = transforms.Compose([
-        transforms.Resize((336, 336)),
+        transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    dataset = GeoImageDataset('datalink.csv', 'path/to/image/directory', transform=transform)
+    dataset = GeoImageDataset('./datalink.csv', './dataset/dataset', transform=transform)
     print(f"Total dataset size: {len(dataset)}")
     
     train_data, temp_data = train_test_split(dataset, test_size=0.3, random_state=42)
@@ -145,7 +146,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    clip_model = CLIPVisionModel.from_pretrained("openai/clip-vit-large-patch14-336")
+    clip_model = CLIPVisionModel.from_pretrained("laion/CLIP-ViT-bigG-14-laion2B-39B-b160k")
     print("CLIP model loaded")
     
     model = GeoPredictor(clip_model)
