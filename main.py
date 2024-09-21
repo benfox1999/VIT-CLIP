@@ -140,7 +140,7 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    dataset = GeoImageDataset('./datalink.csv', './dataset/dataset', transform=transform)
+    dataset = GeoImageDataset('../datalink.csv', '../dataset/dataset', transform=transform)
     print(f"Total dataset size: {len(dataset)}")
     
     train_data, temp_data = train_test_split(dataset, test_size=0.3, random_state=42)
