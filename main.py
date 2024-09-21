@@ -13,12 +13,16 @@ from geopy.distance import geodesic
 
 class GeoImageDataset(Dataset):
     def __init__(self, csv_file, img_dir, transform=None):
+        print(f"Loading dataset from {csv_file}")
         self.data = pd.read_csv(csv_file, header=None, names=['latitude', 'longitude', 'id'])
+        print(f"Dataset loaded with {len(self.data)} rows.")
         self.img_dir = img_dir
         self.transform = transform
 
     def __len__(self):
-        return len(self.data) * 4  # 4 images per location
+        dataset_length = len(self.data) * 4  # 4 images per location
+        print(f"Calculated dataset length: {dataset_length}")
+        return dataset_length
 
     def __getitem__(self, idx):
         row = idx // 4
@@ -29,7 +33,7 @@ class GeoImageDataset(Dataset):
         
         img_path = os.path.join(self.img_dir, f"{img_id}${img_idx}.jpg")
         image = Image.open(img_path).convert('RGB')
-        
+
         if self.transform:
             image = self.transform(image)
         
@@ -43,8 +47,10 @@ class GeoPredictor(nn.Module):
         print("GeoPredictor model initialized")
 
     def forward(self, pixel_values):
+        print("Running forward pass in GeoPredictor")
         outputs = self.clip_model(pixel_values=pixel_values)
         pooled_output = outputs.pooler_output
+        print(f"Obtained pooled output from CLIP model")
         return self.regressor(pooled_output)
 
 def train_model(model, train_loader, val_loader, optimizer, scheduler, num_epochs, device):
@@ -54,6 +60,7 @@ def train_model(model, train_loader, val_loader, optimizer, scheduler, num_epoch
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0
+        print(f"Training epoch {epoch+1}/{num_epochs}")
         for i, (images, coords) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}")):
             images, coords = images.to(device), coords.to(device)
             
@@ -76,6 +83,7 @@ def train_model(model, train_loader, val_loader, optimizer, scheduler, num_epoch
         # Validation
         model.eval()
         val_loss = 0
+        print(f"Validating epoch {epoch+1}")
         with torch.no_grad():
             for images, coords in val_loader:
                 images, coords = images.to(device), coords.to(device)
@@ -98,7 +106,7 @@ def evaluate_model(model, test_loader, device):
             predicted_coords = model(images)
             
             for true, pred in zip(coords.cpu().numpy(), predicted_coords.cpu().numpy()):
-                print(true, pred)
+                print(f"True coordinates: {true}, Predicted coordinates: {pred}")
                 distance = geodesic(true, pred).kilometers
                 distances.append(distance)
             
