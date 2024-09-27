@@ -35,17 +35,33 @@ class GeoImageDataset(Dataset):
         
         return image, torch.tensor([lat, lon], dtype=torch.float)
 
+class CustomActivation(nn.Module):
+    def __init__(self, min_lat, max_lat, min_lon, max_lon):
+        super().__init__()
+        self.min_lat, self.max_lat = min_lat, max_lat
+        self.min_lon, self.max_lon = min_lon, max_lon
+
+    def forward(self, x):
+        lat = torch.sigmoid(x[:, 0]) * (self.max_lat - self.min_lat) + self.min_lat
+        lon = torch.sigmoid(x[:, 1]) * (self.max_lon - self.min_lon) + self.min_lon
+        return torch.stack([lat, lon], dim=1)
+
 class GeoPredictor(nn.Module):
     def __init__(self, clip_model):
         super().__init__()
         self.clip_model = clip_model
         self.regressor = nn.Linear(clip_model.config.hidden_size, 2)
+        self.custom_activation = CustomActivation(
+            min_lat=21.591418, max_lat=27.156413,
+            min_lon=85.876138, max_lon=89.837462
+        )
         print("GeoPredictor model initialized")
 
     def forward(self, pixel_values):
         outputs = self.clip_model(pixel_values=pixel_values)
         pooled_output = outputs.pooler_output
-        return self.regressor(pooled_output)
+        raw_coords = self.regressor(pooled_output)
+        return self.custom_activation(raw_coords)
 
 def train_model(model, train_loader, val_loader, optimizer, scheduler, num_epochs, device):
     print("Starting model training")
@@ -98,7 +114,6 @@ def evaluate_model(model, test_loader, device):
             predicted_coords = model(images)
             
             for true, pred in zip(coords.cpu().numpy(), predicted_coords.cpu().numpy()):
-                print(true, pred)
                 distance = geodesic(true, pred).kilometers
                 distances.append(distance)
             
@@ -115,7 +130,7 @@ def main():
     batch_size = 32
     learning_rate = 1e-6
     weight_decay = 1e-3
-    num_epochs = 3
+    num_epochs = 30
     adam_beta1 = 0.9
     adam_beta2 = 0.98
 
@@ -146,20 +161,27 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    clip_model = CLIPVisionModel.from_pretrained("sentence-transformers/clip-ViT-B-32")
-    print("CLIP model loaded")
+    clip_model = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    print("CLIP model loaded and moved to device")
     
-    model = GeoPredictor(clip_model)
+    model = GeoPredictor(clip_model).to(device)
+    print("GeoPredictor model moved to device")
     
+    # Test output range
+    print("Testing output range")
+    test_input = torch.randn(10, 3, 224, 224).to(device)
+    test_output = model(test_input)
+    print("Sample output:")
+    print(test_output)
+    print(f"Latitude range: [{test_output[:, 0].min().item():.6f}, {test_output[:, 0].max().item():.6f}]")
+    print(f"Longitude range: [{test_output[:, 1].min().item():.6f}, {test_output[:, 1].max().item():.6f}]")
+
     # Multi-GPU setup
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs")
         model = nn.DataParallel(model)
     else:
         print("Using single GPU or CPU")
-    
-    model = model.to(device)
-    print("Model moved to device")
 
     # Optimizer and scheduler
     print("Setting up optimizer and scheduler")
