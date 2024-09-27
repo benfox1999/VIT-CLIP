@@ -139,7 +139,7 @@ def main():
     # Data preparation
     print("Preparing dataset and dataloaders")
     transform = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((378, 378)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
@@ -161,7 +161,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    clip_model = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    clip_model = CLIPVisionModel.from_pretrained("apple/DFN5B-CLIP-ViT-H-14-378").to(device)
     print("CLIP model loaded and moved to device")
     
     model = GeoPredictor(clip_model).to(device)
