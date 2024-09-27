@@ -16,9 +16,28 @@ class GeoImageDataset(Dataset):
         self.data = pd.read_csv(csv_file, header=None, names=['latitude', 'longitude', 'id'])
         self.img_dir = img_dir
         self.transform = transform
+        self.image_cache = {}
+        self.load_all_images()
 
     def __len__(self):
         return len(self.data) * 4  # 4 images per location
+
+    def load_image(self, img_path):
+        if img_path not in self.image_cache:
+            image = Image.open(img_path).convert('RGB')
+            if self.transform:
+                image = self.transform(image)
+            self.image_cache[img_path] = image
+        return self.image_cache[img_path]
+
+    def load_all_images(self):
+        total_images = len(self.data) * 4
+        with tqdm(total=total_images, desc="Loading images") as pbar:
+            for _, row in self.data.iterrows():
+                for img_idx in range(4):
+                    img_path = os.path.join(self.img_dir, f"{row['id']}${img_idx}.jpg")
+                    self.load_image(img_path)
+                    pbar.update(1)
 
     def __getitem__(self, idx):
         row = idx // 4
@@ -28,12 +47,11 @@ class GeoImageDataset(Dataset):
         img_id = self.data.iloc[row, 2]
         
         img_path = os.path.join(self.img_dir, f"{img_id}${img_idx}.jpg")
-        image = Image.open(img_path).convert('RGB')
-        
-        if self.transform:
-            image = self.transform(image)
+        image = self.image_cache[img_path]
         
         return image, torch.tensor([lat, lon], dtype=torch.float)
+
+
 
 class CustomActivation(nn.Module):
     def __init__(self, min_lat, max_lat, min_lon, max_lon):
@@ -139,7 +157,7 @@ def main():
     # Data preparation
     print("Preparing dataset and dataloaders")
     transform = transforms.Compose([
-        transforms.Resize((378, 378)),
+        transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
@@ -161,7 +179,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    clip_model = CLIPVisionModel.from_pretrained("apple/DFN5B-CLIP-ViT-H-14-378").to(device)
+    clip_model = CLIPVisionModel.from_pretrained("openai/clip-vit-large-patch14").to(device)
     print("CLIP model loaded and moved to device")
     
     model = GeoPredictor(clip_model).to(device)
