@@ -146,7 +146,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    clip_model = CLIPVisionModel.from_pretrained("laion/CLIP-ViT-bigG-14-laion2B-39B-b160k")
+    clip_model = CLIPVisionModel.from_pretrained("sentence-transformers/clip-ViT-B-32")
     print("CLIP model loaded")
     
     model = GeoPredictor(clip_model)
